@@ -1,0 +1,51 @@
+{
+  "name": "mdmbox-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for MDMbox — patient matching, merging, and deduplication",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "bun": "./src/index.ts",
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepare": "bun run build",
+    "test": "bun test",
+    "check-types": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HealthSamurai/mdmbox-sdk.git"
+  },
+  "keywords": [
+    "mdmbox",
+    "fhir",
+    "mpi",
+    "patient-matching",
+    "deduplication",
+    "aidbox",
+    "health-samurai"
+  ],
+  "author": "Health Samurai <hello@health-samurai.io> (https://www.health-samurai.io)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/HealthSamurai/mdmbox-sdk/issues"
+  },
+  "homepage": "https://github.com/HealthSamurai/mdmbox-sdk#readme",
+  "dependencies": {
+    "@health-samurai/aidbox-client": "0.0.0-alpha.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.7"
+  }
+}
