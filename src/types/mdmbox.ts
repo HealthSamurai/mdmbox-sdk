@@ -141,3 +141,39 @@ export interface MergePreviewResponse {
     bundle: TransactionBundle;
   };
 }
+
+// ==================== Unmerge ====================
+
+/**
+ * Parameters accepted by `MdmboxClient.unmerge`.
+ *
+ * @property source Reference to the resource that was merged away (e.g. `"Patient/123"`).
+ * @property target Reference to the resource that was merged into (the "winner").
+ * @property withIfMatch When true (default), the SDK populates `ifMatch` on every PUT entry
+ *   from `entry.resource.meta.versionId`. Set to `false` to manage `ifMatch` manually.
+ * @property entries List of unmerge plan entries (PUT/POST/DELETE).
+ */
+export interface UnmergeParams {
+  source: string;
+  target: string;
+  withIfMatch?: boolean;
+  entries: MergePlanEntry[];
+}
+
+/** Successful unmerge response. */
+export interface UnmergeResponse {
+  resource: {
+    outcome: OperationOutcome;
+    inputParameters?: Record<string, unknown>;
+    task?: Record<string, unknown>;
+    result?: Record<string, unknown>;
+  };
+}
+
+/** Successful unmerge preview response. */
+export interface UnmergePreviewResponse {
+  resource: {
+    outcome: OperationOutcome;
+    bundle: TransactionBundle;
+  };
+}

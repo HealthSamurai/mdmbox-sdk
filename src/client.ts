@@ -13,6 +13,9 @@ import type {
   MergePreviewResponse,
   MergeResponse,
   TransactionBundle,
+  UnmergeParams,
+  UnmergePreviewResponse,
+  UnmergeResponse,
 } from "./types/mdmbox";
 
 // ==================== Private helpers ====================
@@ -113,6 +116,33 @@ export function buildMergeBody(
   };
 }
 
+/** Build the FHIR `Parameters` body for an unmerge request. */
+export function buildUnmergeBody(
+  params: UnmergeParams & { preview: boolean }
+): {
+  resourceType: "Parameters";
+  parameter: Array<Record<string, unknown>>;
+} {
+  const withIfMatch = params.withIfMatch !== false;
+  const entries = applyIfMatch(params.entries, withIfMatch);
+
+  const bundle: TransactionBundle = {
+    resourceType: "Bundle",
+    type: "transaction",
+    entry: entries,
+  };
+
+  return {
+    resourceType: "Parameters",
+    parameter: [
+      { name: "source", valueReference: { reference: params.source } },
+      { name: "target", valueReference: { reference: params.target } },
+      { name: "preview", valueBoolean: params.preview },
+      { name: "plan", resource: bundle },
+    ],
+  };
+}
+
 function getParameter(payload: any, name: string): any {
   return payload?.parameter?.find((p: any) => p.name === name);
 }
@@ -151,6 +181,12 @@ export interface MdmboxClient {
 
   /** `POST /api/$merge` with `preview: true` */
   mergePreview: (params: MergeParams) => Promise<Result<MergePreviewResponse, MdmboxError>>;
+
+  /** `POST /api/$unmerge` */
+  unmerge: (params: UnmergeParams) => Promise<Result<UnmergeResponse, MdmboxError>>;
+
+  /** `POST /api/$unmerge` with `preview: true` */
+  unmergePreview: (params: UnmergeParams) => Promise<Result<UnmergePreviewResponse, MdmboxError>>;
 
   /** `POST /api/fhir/{resource}/{id}/$referencing` */
   findRelated: (params: FindRelatedParams) => Promise<Result<{ resource: any }, MdmboxError>>;
@@ -346,6 +382,57 @@ export function makeClient(config: MdmboxClientConfig): MdmboxClient {
     });
   }
 
+  async function unmerge(
+    params: UnmergeParams
+  ): Promise<Result<UnmergeResponse, MdmboxError>> {
+    const body = buildUnmergeBody({ ...params, preview: false });
+    const result = await request<any>("/api/$unmerge", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+
+    return result.map(({ resource: payload }) => {
+      const outcomeParam = getParameter(payload, "outcome");
+      const outcome: OperationOutcome = outcomeParam?.resource ?? {
+        resourceType: "OperationOutcome",
+        issue: [],
+      };
+      return {
+        resource: {
+          outcome,
+          task: getParameter(payload, "task")?.resource,
+          result: getParameter(payload, "result")?.resource,
+          inputParameters: getParameter(payload, "input-parameters")?.resource,
+        },
+      };
+    });
+  }
+
+  async function unmergePreview(
+    params: UnmergeParams
+  ): Promise<Result<UnmergePreviewResponse, MdmboxError>> {
+    const body = buildUnmergeBody({ ...params, preview: true });
+    const result = await request<any>("/api/$unmerge", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+
+    return result.map(({ resource: payload }) => {
+      const outcomeParam = getParameter(payload, "outcome");
+      const outcome: OperationOutcome = outcomeParam?.resource ?? {
+        resourceType: "OperationOutcome",
+        issue: [],
+      };
+      const bundleParam = getParameter(payload, "bundle");
+      return {
+        resource: {
+          outcome,
+          bundle: bundleParam?.resource as TransactionBundle,
+        },
+      };
+    });
+  }
+
   async function getModel(params: {
     id: string;
   }): Promise<Result<{ resource: MatchingModel }, MdmboxError>> {
@@ -358,6 +445,8 @@ export function makeClient(config: MdmboxClientConfig): MdmboxClient {
     match,
     merge,
     mergePreview,
+    unmerge,
+    unmergePreview,
     findRelated,
     getModel,
   };
