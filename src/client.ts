@@ -1,6 +1,6 @@
 import { Ok, Err } from "@health-samurai/aidbox-client";
 import type { Result } from "@health-samurai/aidbox-client";
-import type { OperationOutcome } from "./types/fhir";
+import type { Bundle, OperationOutcome, SearchsetBundle } from "./types/fhir";
 import type {
   MatchByIdParams,
   MatchParams,
@@ -147,6 +147,55 @@ function getParameter(payload: any, name: string): any {
   return payload?.parameter?.find((p: any) => p.name === name);
 }
 
+/**
+ * Build a `URLSearchParams` instance from either a `[key, value]` pair list
+ * or a `Record` (string or string[] values). Pair-list form preserves order
+ * and supports repeated keys (e.g. `_has`).
+ */
+function buildSearchParams(
+  params?: [string, string][] | Record<string, string | string[]>
+): URLSearchParams {
+  const qs = new URLSearchParams();
+  if (!params) return qs;
+
+  if (Array.isArray(params)) {
+    for (const [k, v] of params) qs.append(k, v);
+    return qs;
+  }
+
+  for (const [k, v] of Object.entries(params)) {
+    if (Array.isArray(v)) {
+      for (const item of v) qs.append(k, item);
+    } else {
+      qs.append(k, v);
+    }
+  }
+  return qs;
+}
+
+/**
+ * Parse a FHIR reference like `"Patient/123"` or `"Patient/123/_history/2"`
+ * into its parts. Returns `null` if the reference is malformed.
+ */
+function parseReference(reference: string): {
+  resourceType: string;
+  id: string;
+  versionId?: string;
+} | null {
+  const parts = reference.split("/");
+  if (parts.length === 2) {
+    const [resourceType, id] = parts;
+    if (!resourceType || !id) return null;
+    return { resourceType, id };
+  }
+  if (parts.length === 4 && parts[2] === "_history") {
+    const [resourceType, id, , versionId] = parts;
+    if (!resourceType || !id || !versionId) return null;
+    return { resourceType, id, versionId };
+  }
+  return null;
+}
+
 // ==================== Config & types ====================
 
 /**
@@ -193,6 +242,46 @@ export interface MdmboxClient {
 
   /** `GET /api/models/{id}` */
   getModel: (params: { id: string }) => Promise<Result<{ resource: MatchingModel }, MdmboxError>>;
+
+  /** `GET /fhir-server-api/{resourceType}/{id}` — read a FHIR resource by id. */
+  read: <T = any>(params: {
+    resourceType: string;
+    id: string;
+  }) => Promise<Result<{ resource: T }, MdmboxError>>;
+
+  /** `GET /fhir-server-api/{resourceType}/{id}/_history/{vid}` — read a specific version. */
+  vread: <T = any>(params: {
+    resourceType: string;
+    id: string;
+    versionId: string;
+  }) => Promise<Result<{ resource: T }, MdmboxError>>;
+
+  /**
+   * `GET /fhir-server-api/{resourceType}?...` — FHIR search.
+   *
+   * `params` accepts either `[key, value][]` pairs (preserves order, allows
+   * repeated keys like `_has`) or a `Record` mapping keys to strings or
+   * arrays of strings.
+   *
+   * Returns the FHIR searchset Bundle as-is — flattening is left to the caller.
+   */
+  search: <T = any>(params: {
+    resourceType: string;
+    params?: [string, string][] | Record<string, string | string[]>;
+  }) => Promise<Result<{ resource: SearchsetBundle<T> }, MdmboxError>>;
+
+  /**
+   * Read by FHIR reference string. Accepts either `"Type/id"` or
+   * `"Type/id/_history/vid"` (the latter delegates to `vread`).
+   */
+  readReference: <T = any>(params: {
+    reference: string;
+  }) => Promise<Result<{ resource: T }, MdmboxError>>;
+
+  /** `POST /fhir-server-api` — submit a FHIR Bundle (batch or transaction). */
+  bundle: (params: {
+    bundle: Bundle;
+  }) => Promise<Result<{ resource: Bundle }, MdmboxError>>;
 }
 
 // ==================== Factory ====================
@@ -439,6 +528,69 @@ export function makeClient(config: MdmboxClientConfig): MdmboxClient {
     return request<MatchingModel>(`/api/models/${params.id}`);
   }
 
+  async function read<T = any>(params: {
+    resourceType: string;
+    id: string;
+  }): Promise<Result<{ resource: T }, MdmboxError>> {
+    const url = `/fhir-server-api/${encodeURIComponent(params.resourceType)}/${encodeURIComponent(params.id)}`;
+    return request<T>(url);
+  }
+
+  async function vread<T = any>(params: {
+    resourceType: string;
+    id: string;
+    versionId: string;
+  }): Promise<Result<{ resource: T }, MdmboxError>> {
+    const url = `/fhir-server-api/${encodeURIComponent(params.resourceType)}/${encodeURIComponent(params.id)}/_history/${encodeURIComponent(params.versionId)}`;
+    return request<T>(url);
+  }
+
+  async function search<T = any>(params: {
+    resourceType: string;
+    params?: [string, string][] | Record<string, string | string[]>;
+  }): Promise<Result<{ resource: SearchsetBundle<T> }, MdmboxError>> {
+    const qs = buildSearchParams(params.params).toString();
+    const url = `/fhir-server-api/${encodeURIComponent(params.resourceType)}${qs ? `?${qs}` : ""}`;
+    return request<SearchsetBundle<T>>(url);
+  }
+
+  async function readReference<T = any>(params: {
+    reference: string;
+  }): Promise<Result<{ resource: T }, MdmboxError>> {
+    const parsed = parseReference(params.reference);
+    if (!parsed) {
+      return Err({
+        resource: {
+          resourceType: "OperationOutcome",
+          issue: [
+            {
+              severity: "error",
+              code: "invalid",
+              diagnostics: `Invalid reference: ${params.reference}`,
+            },
+          ],
+        },
+      });
+    }
+    if (parsed.versionId) {
+      return vread<T>({
+        resourceType: parsed.resourceType,
+        id: parsed.id,
+        versionId: parsed.versionId,
+      });
+    }
+    return read<T>({ resourceType: parsed.resourceType, id: parsed.id });
+  }
+
+  async function bundle(params: {
+    bundle: Bundle;
+  }): Promise<Result<{ resource: Bundle }, MdmboxError>> {
+    return request<Bundle>("/fhir-server-api", {
+      method: "POST",
+      body: JSON.stringify(params.bundle),
+    });
+  }
+
   return {
     request,
     matchById,
@@ -449,6 +601,11 @@ export function makeClient(config: MdmboxClientConfig): MdmboxClient {
     unmergePreview,
     findRelated,
     getModel,
+    read,
+    vread,
+    search,
+    readReference,
+    bundle,
   };
 }
 
@@ -460,4 +617,6 @@ export const __internal = {
   extractIdFromFullUrl,
   applyIfMatch,
   getParameter,
+  buildSearchParams,
+  parseReference,
 };

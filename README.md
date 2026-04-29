@@ -136,7 +136,80 @@ Fetch a matching model by id.
 const result = await mdmbox.getModel({ id: "sonic-patient-model" });
 ```
 
+### FHIR access
+
+The MDMbox client exposes a whitelisted FHIR proxy under `/fhir-server-api`, so apps don't need a separate Aidbox client to read or write resources. All methods use the same auth/headers as the rest of the SDK and return `Result<{ resource }, MdmboxError>`.
+
+#### `read(params)`
+
+`GET /fhir-server-api/{resourceType}/{id}` — read a FHIR resource by id.
+
+```ts
+const result = await mdmbox.read({ resourceType: "Patient", id: "123" });
+```
+
+#### `vread(params)`
+
+`GET /fhir-server-api/{resourceType}/{id}/_history/{vid}` — read a specific version.
+
+```ts
+const result = await mdmbox.vread({
+  resourceType: "Patient",
+  id: "123",
+  versionId: "2",
+});
+```
+
+#### `search(params)`
+
+`GET /fhir-server-api/{resourceType}?...` — FHIR search. Returns the searchset Bundle as-is; flattening is left to the caller. Pass `params` as a `[key, value][]` pair list to preserve order and support repeated keys (e.g. `_has`), or as a `Record<string, string | string[]>`.
+
+```ts
+const result = await mdmbox.search({
+  resourceType: "Patient",
+  params: [
+    ["name", "John"],
+    ["_count", "20"],
+  ],
+});
+
+if (result.isOk()) {
+  for (const entry of result.value.resource.entry ?? []) {
+    console.log(entry.resource);
+  }
+}
+```
+
+#### `readReference(params)`
+
+Read by FHIR reference string. Accepts `"Type/id"` or `"Type/id/_history/vid"` (the latter delegates to `vread`). Useful for following references in a merge plan.
+
+```ts
+const result = await mdmbox.readReference({
+  reference: "Patient/123/_history/4",
+});
+```
+
+#### `bundle(params)`
+
+`POST /fhir-server-api` — submit a FHIR `Bundle` (batch or transaction).
+
+```ts
+const result = await mdmbox.bundle({
+  bundle: {
+    resourceType: "Bundle",
+    type: "batch",
+    entry: [
+      { request: { method: "GET", url: "Patient/123" } },
+      { request: { method: "GET", url: "Encounter?subject=Patient/123" } },
+    ],
+  },
+});
+```
+
 ### `makeAidboxClient(config)`
+
+> **Deprecated.** Prefer the [`MdmboxClient` FHIR methods](#fhir-access) (`read` / `search` / `bundle` / …) — they go through the whitelisted MDMbox proxy and don't require a separate Aidbox dependency or auth setup. `makeAidboxClient` will be removed in a future release.
 
 Re-exported from `@health-samurai/aidbox-client`. Provides FHIR `read`, `search`, `searchBundle`, `transaction`, and `query` operations.
 

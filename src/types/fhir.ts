@@ -36,7 +36,7 @@ export type Resource = Omit<FhirResource, "resourceType"> & {
 };
 
 /**
- * A FHIR transaction Bundle entry with required `request`.
+ * A FHIR Bundle entry with required `request`.
  *
  * Upstream `BundleEntry.request` is optional and `resource` uses the
  * narrow `FhirResource`. We tighten `request` and widen `resource`.
@@ -51,9 +51,25 @@ export type BundleEntry = Omit<FhirBundleEntry, "request" | "resource"> & {
 };
 
 /**
- * A FHIR transaction Bundle.
+ * A FHIR batch / transaction Bundle (request) or its response.
+ *
+ * The MDMbox FHIR proxy accepts `"batch" | "transaction"` and replies with
+ * a `"batch-response" | "transaction-response"` Bundle.
  */
 export type Bundle = Omit<FhirBundle, "entry" | "type"> & {
-  type: "transaction";
+  type: "batch" | "transaction" | "batch-response" | "transaction-response";
   entry: BundleEntry[];
+};
+
+/**
+ * A FHIR searchset Bundle returned from `search`.
+ */
+export type SearchsetBundle<T = unknown> = Omit<FhirBundle, "entry" | "type"> & {
+  type: "searchset";
+  total?: number;
+  entry?: Array<{
+    fullUrl?: string;
+    resource?: T;
+    search?: { mode?: "match" | "include" | "outcome"; score?: number };
+  }>;
 };
