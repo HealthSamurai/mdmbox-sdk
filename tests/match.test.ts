@@ -1,43 +1,76 @@
 import { describe, expect, test } from "bun:test";
 import { __internal } from "../src/client";
 
-const { buildMatchQuery, parseMatchDetails, parseProjection, extractIdFromFullUrl } =
-  __internal;
+const {
+  buildMatchParameters,
+  parseMatchDetails,
+  parseProjection,
+  extractIdFromFullUrl,
+} = __internal;
 
-describe("buildMatchQuery", () => {
-  test("returns empty string when no params", () => {
-    expect(buildMatchQuery({})).toBe("");
+/** Look up a Parameters entry by name. */
+const param = (body: ReturnType<typeof buildMatchParameters>, name: string) =>
+  body.parameter.find((p) => p.name === name);
+
+describe("buildMatchParameters", () => {
+  test("empty options yield an empty Parameters body", () => {
+    const body = buildMatchParameters({});
+    expect(body.resourceType).toBe("Parameters");
+    expect(body.parameter).toEqual([]);
   });
 
-  test("translates `modelId` → `model-id`", () => {
-    const qs = buildMatchQuery({ modelId: "sonic-patient-model" });
-    const params = new URLSearchParams(qs);
-    expect(params.get("model-id")).toBe("sonic-patient-model");
+  test("modelId → valueString", () => {
+    const body = buildMatchParameters({ modelId: "sonic-patient-model" });
+    expect(param(body, "modelId")).toEqual({
+      name: "modelId",
+      valueString: "sonic-patient-model",
+    });
   });
 
-  test("emits all known params", () => {
-    const qs = buildMatchQuery({
-      page: 2,
-      count: 50,
+  test("emits all known options with correct value[x] types", () => {
+    const body = buildMatchParameters({
       modelId: "m",
       threshold: 16.5,
-      withDuplicates: true,
-      episodeNumber: "EPS-1",
-      projectionId: "proj-agg",
+      onlyCertainMatches: false,
+      onlySingleMatch: false,
+      count: 20,
     });
-    const params = new URLSearchParams(qs);
-    expect(params.get("page")).toBe("2");
-    expect(params.get("size")).toBe("50");
-    expect(params.get("model-id")).toBe("m");
-    expect(params.get("threshold")).toBe("16.5");
-    expect(params.get("with-duplicates")).toBe("true");
-    expect(params.get("episode-number")).toBe("EPS-1");
-    expect(params.get("projection-id")).toBe("proj-agg");
+    expect(param(body, "modelId")).toEqual({ name: "modelId", valueString: "m" });
+    expect(param(body, "threshold")).toEqual({
+      name: "threshold",
+      valueDecimal: 16.5,
+    });
+    expect(param(body, "onlyCertainMatches")).toEqual({
+      name: "onlyCertainMatches",
+      valueBoolean: false,
+    });
+    expect(param(body, "onlySingleMatch")).toEqual({
+      name: "onlySingleMatch",
+      valueBoolean: false,
+    });
+    expect(param(body, "count")).toEqual({ name: "count", valueInteger: 20 });
   });
 
-  test("withDuplicates=false is omitted", () => {
-    const qs = buildMatchQuery({ withDuplicates: false });
-    expect(qs).toBe("");
+  test("boolean false is still emitted (presence, not truthiness)", () => {
+    const body = buildMatchParameters({ onlyCertainMatches: false });
+    expect(param(body, "onlyCertainMatches")).toEqual({
+      name: "onlyCertainMatches",
+      valueBoolean: false,
+    });
+  });
+
+  test("resource is included for type-level match, after modelId", () => {
+    const resource = { resourceType: "Patient", id: "1" };
+    const body = buildMatchParameters({ modelId: "m" }, resource);
+    expect(param(body, "resource")).toEqual({ name: "resource", resource });
+    // modelId precedes resource (matches server examples).
+    const names = body.parameter.map((p) => p.name);
+    expect(names.indexOf("modelId")).toBeLessThan(names.indexOf("resource"));
+  });
+
+  test("resource is omitted when not passed (instance-level match)", () => {
+    const body = buildMatchParameters({ modelId: "m" });
+    expect(param(body, "resource")).toBeUndefined();
   });
 });
 

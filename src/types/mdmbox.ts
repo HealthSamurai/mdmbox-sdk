@@ -26,36 +26,37 @@ export interface MatchResponse {
   results: MatchResult[];
 }
 
+/**
+ * Tuning parameters shared by `match` and `matchById`. All are sent as named
+ * entries inside the FHIR `Parameters` request body.
+ */
+export interface MatchOptions {
+  /** MatchingModel id. Required by the server (`modelId`). */
+  modelId?: string;
+  /** Log-odds weight threshold (`threshold`, `valueDecimal`). */
+  threshold?: number;
+  /** Restrict results to certain-grade matches (`onlyCertainMatches`). */
+  onlyCertainMatches?: boolean;
+  /** Ask the server to designate a single appropriate match (`onlySingleMatch`). */
+  onlySingleMatch?: boolean;
+  /** Cap the number of results (`count`, `valueInteger`). */
+  count?: number;
+}
+
 /** Parameters for `matchById` — match an existing resource by id. */
-export interface MatchByIdParams {
+export interface MatchByIdParams extends MatchOptions {
   /** FHIR resource type (e.g. "Patient", "Practitioner"). */
   resourceType: string;
-  /** Resource id to match against. */
+  /** Resource id to match against — the resource is loaded server-side. */
   id: string;
-  /** MatchingModel id (sent as `model-id` query param). */
-  modelId?: string;
-  threshold?: number;
-  page?: number;
-  count?: number;
-  withDuplicates?: boolean;
-  episodeNumber?: string;
-  /** Projection id to enrich results with custom columns/aggregates. */
-  projectionId?: string;
 }
 
 /** Parameters for `match` — match a resource passed in the request body. */
-export interface MatchParams {
+export interface MatchParams extends MatchOptions {
   /** FHIR resource type (e.g. "Patient", "Practitioner"). */
   resourceType: string;
-  /** The FHIR Parameters body to match against. */
-  body: Record<string, unknown>;
-  /** MatchingModel id. */
-  modelId?: string;
-  threshold?: number;
-  page?: number;
-  count?: number;
-  withDuplicates?: boolean;
-  projectionId?: string;
+  /** The FHIR resource to match against (sent as the `resource` parameter). */
+  resource: Record<string, unknown>;
 }
 
 // ==================== Matching Model ====================

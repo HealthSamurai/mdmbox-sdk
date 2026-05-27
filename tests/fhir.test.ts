@@ -247,6 +247,75 @@ describe("MdmboxClient.search", () => {
   });
 });
 
+describe("MdmboxClient.matchById", () => {
+  let mock: ReturnType<typeof mockFetch>;
+  afterEach(() => mock?.restore());
+
+  const emptySearchset = {
+    resourceType: "Bundle",
+    type: "searchset",
+    total: 0,
+    entry: [],
+  };
+
+  test("POSTs to /api/fhir/{type}/{id}/$match with options in the Parameters body (no query string)", async () => {
+    mock = mockFetch({ body: emptySearchset });
+    const client = makeClient({ baseUrl: BASE_URL });
+    await client.matchById({
+      resourceType: "Patient",
+      id: "123",
+      modelId: "sonic-patient-model",
+      threshold: 16,
+      count: 20,
+    });
+
+    expect(mock.calls[0].url).toBe(
+      `${BASE_URL}/api/fhir/Patient/123/$match`
+    );
+    expect(mock.calls[0].init?.method).toBe("POST");
+    const body = JSON.parse(mock.calls[0].init?.body as string);
+    expect(body.resourceType).toBe("Parameters");
+    expect(body.parameter).toEqual([
+      { name: "modelId", valueString: "sonic-patient-model" },
+      { name: "threshold", valueDecimal: 16 },
+      { name: "count", valueInteger: 20 },
+    ]);
+    // The resource is loaded server-side by id, so it's not in the body.
+    expect(
+      body.parameter.find((p: any) => p.name === "resource")
+    ).toBeUndefined();
+  });
+});
+
+describe("MdmboxClient.match", () => {
+  let mock: ReturnType<typeof mockFetch>;
+  afterEach(() => mock?.restore());
+
+  test("POSTs the resource inside the Parameters body", async () => {
+    mock = mockFetch({
+      body: { resourceType: "Bundle", type: "searchset", total: 0, entry: [] },
+    });
+    const client = makeClient({ baseUrl: BASE_URL });
+    const resource = {
+      resourceType: "Patient",
+      name: [{ given: ["Jane"], family: "Doe" }],
+    };
+    await client.match({
+      resourceType: "Patient",
+      resource,
+      modelId: "m",
+    });
+
+    expect(mock.calls[0].url).toBe(`${BASE_URL}/api/fhir/Patient/$match`);
+    expect(mock.calls[0].init?.method).toBe("POST");
+    const body = JSON.parse(mock.calls[0].init?.body as string);
+    expect(body.parameter).toEqual([
+      { name: "modelId", valueString: "m" },
+      { name: "resource", resource },
+    ]);
+  });
+});
+
 describe("MdmboxClient.bundle", () => {
   let mock: ReturnType<typeof mockFetch>;
   afterEach(() => mock?.restore());

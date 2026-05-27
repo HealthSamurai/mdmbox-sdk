@@ -3,6 +3,7 @@ import type { Result } from "@health-samurai/aidbox-client";
 import type { Bundle, OperationOutcome, SearchsetBundle } from "./types/fhir";
 import type {
   MatchByIdParams,
+  MatchOptions,
   MatchParams,
   MatchResponse,
   MatchResult,
@@ -52,25 +53,36 @@ function extractIdFromFullUrl(fullUrl: string): string {
   return parts[parts.length - 1] || "";
 }
 
-function buildMatchQuery(params: {
-  modelId?: string;
-  threshold?: number;
-  page?: number;
-  count?: number;
-  withDuplicates?: boolean;
-  episodeNumber?: string;
-  projectionId?: string;
-}): string {
-  const qs = new URLSearchParams();
-  if (params.page !== undefined) qs.set("page", String(params.page));
-  if (params.count !== undefined) qs.set("size", String(params.count));
-  if (params.modelId) qs.set("model-id", params.modelId);
-  if (params.threshold !== undefined)
-    qs.set("threshold", String(params.threshold));
-  if (params.withDuplicates) qs.set("with-duplicates", "true");
-  if (params.episodeNumber) qs.set("episode-number", params.episodeNumber);
-  if (params.projectionId) qs.set("projection-id", params.projectionId);
-  return qs.toString();
+/**
+ * Build the FHIR `Parameters` body for a `$match` request. The server reads
+ * every tuning option as a named entry inside this body (no query params).
+ *
+ * `resource` is included only for the type-level `$match` — the instance-level
+ * `/{id}/$match` loads the resource by id server-side, so it's omitted there.
+ */
+function buildMatchParameters(
+  options: MatchOptions,
+  resource?: Record<string, unknown>
+): { resourceType: "Parameters"; parameter: Array<Record<string, unknown>> } {
+  const parameter: Array<Record<string, unknown>> = [];
+  if (options.modelId !== undefined)
+    parameter.push({ name: "modelId", valueString: options.modelId });
+  if (resource !== undefined) parameter.push({ name: "resource", resource });
+  if (options.threshold !== undefined)
+    parameter.push({ name: "threshold", valueDecimal: options.threshold });
+  if (options.onlyCertainMatches !== undefined)
+    parameter.push({
+      name: "onlyCertainMatches",
+      valueBoolean: options.onlyCertainMatches,
+    });
+  if (options.onlySingleMatch !== undefined)
+    parameter.push({
+      name: "onlySingleMatch",
+      valueBoolean: options.onlySingleMatch,
+    });
+  if (options.count !== undefined)
+    parameter.push({ name: "count", valueInteger: options.count });
+  return { resourceType: "Parameters", parameter };
 }
 
 function applyIfMatch(
@@ -421,20 +433,25 @@ export function makeClient(config: MdmboxClientConfig): MdmboxClient {
   async function matchById(
     params: MatchByIdParams
   ): Promise<Result<{ resource: MatchResponse }, MdmboxError>> {
-    const query = buildMatchQuery(params);
-    const url = `/api/fhir/${params.resourceType}/${params.id}/$match${query ? `?${query}` : ""}`;
-    return parseMatchBundle(await request<any>(url, { method: "POST" }));
+    const body = buildMatchParameters(params);
+    const url = `/api/fhir/${params.resourceType}/${params.id}/$match`;
+    return parseMatchBundle(
+      await request<any>(url, {
+        method: "POST",
+        body: JSON.stringify(body),
+      })
+    );
   }
 
   async function match(
     params: MatchParams
   ): Promise<Result<{ resource: MatchResponse }, MdmboxError>> {
-    const query = buildMatchQuery(params);
-    const url = `/api/fhir/${params.resourceType}/$match${query ? `?${query}` : ""}`;
+    const body = buildMatchParameters(params, params.resource);
+    const url = `/api/fhir/${params.resourceType}/$match`;
     return parseMatchBundle(
       await request<any>(url, {
         method: "POST",
-        body: JSON.stringify(params.body),
+        body: JSON.stringify(body),
       })
     );
   }
@@ -649,7 +666,7 @@ export function makeClient(config: MdmboxClientConfig): MdmboxClient {
 
 // Re-exported for tests.
 export const __internal = {
-  buildMatchQuery,
+  buildMatchParameters,
   parseMatchDetails,
   parseProjection,
   extractIdFromFullUrl,

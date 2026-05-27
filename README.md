@@ -89,9 +89,14 @@ An `Authorization` entry in `headers` (client- or per-request) takes precedence
 over `auth`. When auth is disabled server-side (`MDMBOX_AUTH_ENABLED=false`),
 `auth` can be omitted entirely.
 
+All tuning options (`modelId`, `threshold`, `onlyCertainMatches`,
+`onlySingleMatch`, `count`) are sent as named entries inside a FHIR
+`Parameters` request body — the SDK builds it for you.
+
 #### `matchById(params)`
 
-Match an existing resource by id.
+Match an existing resource by id. The resource is loaded server-side from the
+id, so you don't pass it.
 
 ```ts
 const result = await mdmbox.matchById({
@@ -99,23 +104,28 @@ const result = await mdmbox.matchById({
   id: "123",
   modelId: "sonic-patient-model",
   threshold: 16,
-  page: 1,
-  count: 10,
-  withDuplicates: false,
-  projectionId: "proj-agg",
+  onlyCertainMatches: false,
+  onlySingleMatch: false,
+  count: 20,
 });
 ```
 
 #### `match(params)`
 
-Match a resource passed in the request body.
+Match a resource passed inline.
 
 ```ts
 const result = await mdmbox.match({
   resourceType: "Patient",
-  body: { resourceType: "Parameters", parameter: [/* ... */] },
+  resource: {
+    resourceType: "Patient",
+    name: [{ given: ["Jane"], family: "Doe" }],
+    gender: "female",
+    birthDate: "1985-04-12",
+  },
   modelId: "sonic-patient-model",
   threshold: 16,
+  count: 20,
 });
 ```
 
