@@ -199,14 +199,47 @@ function parseReference(reference: string): {
 // ==================== Config & types ====================
 
 /**
+ * Authentication for the MDMbox client. MDMbox validates the inbound
+ * `Authorization` header in-process via libox, so any credential libox
+ * accepts works here.
+ *
+ * - `{ username, password }` — HTTP Basic auth (base64-encoded into
+ *   `Authorization: Basic ...`). This is the supported scheme today.
+ * - `{ token }` — sent as `Authorization: Bearer <token>`.
+ * - a raw string — used verbatim as the `Authorization` header value
+ *   (e.g. `"Basic dXNlcjpwYXNz"`).
+ */
+export type MdmboxAuth =
+  | { username: string; password: string }
+  | { token: string }
+  | string;
+
+/**
  * Configuration for `makeClient`.
  *
  * @property baseUrl MDMbox base URL (without trailing slash).
- * @property headers Optional extra headers added to every request.
+ * @property auth Optional authentication — Basic credentials, a bearer
+ *   token, or a raw `Authorization` header value. Sets the
+ *   `Authorization` header on every request.
+ * @property headers Optional extra headers added to every request. An
+ *   `Authorization` header set here takes precedence over `auth`.
  */
 export interface MdmboxClientConfig {
   baseUrl: string;
+  auth?: MdmboxAuth;
   headers?: Record<string, string>;
+}
+
+/**
+ * Encode the `auth` config into an `Authorization` header value.
+ * Returns `undefined` when no auth is configured.
+ */
+function authHeader(auth?: MdmboxAuth): string | undefined {
+  if (!auth) return undefined;
+  if (typeof auth === "string") return auth;
+  if ("token" in auth) return `Bearer ${auth.token}`;
+  const encoded = btoa(`${auth.username}:${auth.password}`);
+  return `Basic ${encoded}`;
 }
 
 /** Error shape returned in `Err` results. */
@@ -293,7 +326,10 @@ export interface MdmboxClient {
  * ```ts
  * import { makeClient } from "mdmbox-sdk";
  *
- * const mdmbox = makeClient({ baseUrl: "http://localhost:3003" });
+ * const mdmbox = makeClient({
+ *   baseUrl: "http://localhost:3003",
+ *   auth: { username: "my-client", password: "my-secret" },
+ * });
  *
  * const result = await mdmbox.matchById({
  *   resourceType: "Patient",
@@ -312,8 +348,10 @@ export interface MdmboxClient {
  */
 export function makeClient(config: MdmboxClientConfig): MdmboxClient {
   const baseUrl = config.baseUrl.replace(/\/$/, "");
+  const auth = authHeader(config.auth);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    ...(auth ? { Authorization: auth } : {}),
     ...config.headers,
   };
 

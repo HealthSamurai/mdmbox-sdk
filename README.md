@@ -32,6 +32,7 @@ const aidbox = makeAidboxClient({
 
 const mdmbox = makeMdmboxClient({
   baseUrl: "http://localhost:3003",
+  auth: { username: "my-client", password: "my-secret" },
 });
 
 // Find matches for a patient
@@ -60,11 +61,33 @@ import { makeClient } from "mdmbox-sdk";
 
 const mdmbox = makeClient({
   baseUrl: "http://localhost:3003",
-  headers: { Authorization: "Bearer ..." }, // optional extra headers
+  auth: { username: "my-client", password: "my-secret" }, // optional
+  headers: { "X-Trace-Id": "..." }, // optional extra headers
 });
 ```
 
 All methods return `Result<T, MdmboxError>` — use `result.isOk()` / `result.isErr()` to handle success and failure.
+
+### Authentication
+
+MDMbox validates the inbound `Authorization` header (via its embedded libox).
+Pass `auth` to set that header on every request:
+
+```ts
+// HTTP Basic — the supported scheme today. Credentials are base64-encoded
+// into `Authorization: Basic ...`.
+makeClient({ baseUrl, auth: { username: "my-client", password: "my-secret" } });
+
+// Bearer token — sent as `Authorization: Bearer <token>`.
+makeClient({ baseUrl, auth: { token: "ey..." } });
+
+// Raw header value — used verbatim.
+makeClient({ baseUrl, auth: "Basic dXNlcjpwYXNz" });
+```
+
+An `Authorization` entry in `headers` (client- or per-request) takes precedence
+over `auth`. When auth is disabled server-side (`MDMBOX_AUTH_ENABLED=false`),
+`auth` can be omitted entirely.
 
 #### `matchById(params)`
 

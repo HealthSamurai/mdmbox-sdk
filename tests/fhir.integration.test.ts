@@ -4,6 +4,8 @@
  * Set `MDMBOX_URL` (default `http://localhost:3003`) to point at a running
  * instance and `MDMBOX_PG_URL` (default
  * `postgres://postgres:postgres@localhost:5438/aidbox`) for fixture cleanup.
+ * If the instance has auth enabled, set `MDMBOX_AUTH_USER` and
+ * `MDMBOX_AUTH_PASSWORD` for Basic auth.
  * If either isn't reachable, every test in this file is skipped — CI without
  * a live mdmbox will still pass.
  *
@@ -25,6 +27,8 @@ const BASE_URL = process.env.MDMBOX_URL ?? "http://localhost:3003";
 const PG_URL =
   process.env.MDMBOX_PG_URL ??
   "postgres://postgres:postgres@localhost:5438/aidbox";
+const AUTH_USER = process.env.MDMBOX_AUTH_USER;
+const AUTH_PASSWORD = process.env.MDMBOX_AUTH_PASSWORD;
 const ID_PREFIX = "mdmbox-sdk-it-";
 const FIXTURE_TAG_SYSTEM = "http://mdmbox-sdk/test";
 const FIXTURE_TAG_VALUE = "integration-fixtures";
@@ -64,7 +68,13 @@ function patientResource(f: Fixture): Resource {
   } as Resource;
 }
 
-const client = makeClient({ baseUrl: BASE_URL });
+const client = makeClient({
+  baseUrl: BASE_URL,
+  auth:
+    AUTH_USER && AUTH_PASSWORD
+      ? { username: AUTH_USER, password: AUTH_PASSWORD }
+      : undefined,
+});
 let live = false;
 let db: SQL | undefined;
 
@@ -81,6 +91,10 @@ beforeAll(async () => {
   try {
     const meta = await fetch(`${BASE_URL}/fhir-server-api/metadata`, {
       signal: AbortSignal.timeout(2000),
+      headers:
+        AUTH_USER && AUTH_PASSWORD
+          ? { Authorization: `Basic ${btoa(`${AUTH_USER}:${AUTH_PASSWORD}`)}` }
+          : undefined,
     });
     if (!meta.ok) return;
   } catch {

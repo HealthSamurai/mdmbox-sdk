@@ -297,6 +297,76 @@ describe("MdmboxClient.bundle", () => {
   });
 });
 
+describe("MdmboxClient auth", () => {
+  let mock: ReturnType<typeof mockFetch>;
+  afterEach(() => mock?.restore());
+
+  const authHeaderOf = (): string | null => {
+    const headers = new Headers(mock.calls[0].init?.headers);
+    return headers.get("Authorization");
+  };
+
+  test("Basic credentials are base64-encoded into Authorization", async () => {
+    mock = mockFetch({ body: { resourceType: "Patient", id: "1" } });
+    const client = makeClient({
+      baseUrl: BASE_URL,
+      auth: { username: "my-client", password: "my-secret" },
+    });
+    await client.read({ resourceType: "Patient", id: "1" });
+    expect(authHeaderOf()).toBe(`Basic ${btoa("my-client:my-secret")}`);
+  });
+
+  test("token form becomes a Bearer header", async () => {
+    mock = mockFetch({ body: { resourceType: "Patient", id: "1" } });
+    const client = makeClient({
+      baseUrl: BASE_URL,
+      auth: { token: "abc.def.ghi" },
+    });
+    await client.read({ resourceType: "Patient", id: "1" });
+    expect(authHeaderOf()).toBe("Bearer abc.def.ghi");
+  });
+
+  test("raw string is used verbatim", async () => {
+    mock = mockFetch({ body: { resourceType: "Patient", id: "1" } });
+    const client = makeClient({
+      baseUrl: BASE_URL,
+      auth: "Basic dXNlcjpwYXNz",
+    });
+    await client.read({ resourceType: "Patient", id: "1" });
+    expect(authHeaderOf()).toBe("Basic dXNlcjpwYXNz");
+  });
+
+  test("no Authorization header when auth is omitted", async () => {
+    mock = mockFetch({ body: { resourceType: "Patient", id: "1" } });
+    const client = makeClient({ baseUrl: BASE_URL });
+    await client.read({ resourceType: "Patient", id: "1" });
+    expect(authHeaderOf()).toBeNull();
+  });
+
+  test("explicit headers.Authorization overrides auth", async () => {
+    mock = mockFetch({ body: { resourceType: "Patient", id: "1" } });
+    const client = makeClient({
+      baseUrl: BASE_URL,
+      auth: { username: "u", password: "p" },
+      headers: { Authorization: "Bearer override" },
+    });
+    await client.read({ resourceType: "Patient", id: "1" });
+    expect(authHeaderOf()).toBe("Bearer override");
+  });
+
+  test("per-request header overrides client auth", async () => {
+    mock = mockFetch({ body: { resourceType: "Patient", id: "1" } });
+    const client = makeClient({
+      baseUrl: BASE_URL,
+      auth: { username: "u", password: "p" },
+    });
+    await client.request("/fhir-server-api/Patient/1", {
+      headers: { Authorization: "Bearer per-request" },
+    });
+    expect(authHeaderOf()).toBe("Bearer per-request");
+  });
+});
+
 describe("MdmboxClient.readReference", () => {
   let mock: ReturnType<typeof mockFetch>;
   afterEach(() => mock?.restore());
