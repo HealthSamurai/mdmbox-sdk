@@ -1,6 +1,6 @@
 # mdmbox-sdk
 
-TypeScript SDK for [MDMbox](https://www.health-samurai.io/mdmbox) — patient matching, merging, and deduplication on [Aidbox](https://www.health-samurai.io/aidbox) FHIR servers.
+TypeScript SDK for [MDMbox](https://www.health-samurai.io/mdmbox) — FHIR-native patient matching, merging, and deduplication.
 
 ## Installation
 
@@ -66,28 +66,8 @@ const mdmbox = makeClient({
 });
 ```
 
-All methods return `Result<T, MdmboxError>` — use `result.isOk()` / `result.isErr()` to handle success and failure.
-
-### Authentication
-
-MDMbox validates the inbound `Authorization` header (via its embedded libox).
-Pass `auth` to set that header on every request:
-
-```ts
-// HTTP Basic — the supported scheme today. Credentials are base64-encoded
-// into `Authorization: Basic ...`.
-makeClient({ baseUrl, auth: { username: "my-client", password: "my-secret" } });
-
-// Bearer token — sent as `Authorization: Bearer <token>`.
-makeClient({ baseUrl, auth: { token: "ey..." } });
-
-// Raw header value — used verbatim.
-makeClient({ baseUrl, auth: "Basic dXNlcjpwYXNz" });
-```
-
-An `Authorization` entry in `headers` (client- or per-request) takes precedence
-over `auth`. When auth is disabled server-side (`MDMBOX_AUTH_ENABLED=false`),
-`auth` can be omitted entirely.
+All methods return `Result<T, MdmboxError>` — use `result.isOk()` /
+`result.isErr()` to handle success and failure.
 
 All tuning options (`modelId`, `threshold`, `onlyCertainMatches`,
 `onlySingleMatch`, `count`) are sent as named entries inside a FHIR
@@ -294,8 +274,15 @@ import {
   toBundle,
 } from "mdmbox-sdk";
 
-const aidbox = makeAidboxClient({ baseUrl: "http://localhost:8888", auth });
-const mdmbox = makeMdmboxClient({ baseUrl: "http://localhost:3003" });
+const aidbox = makeAidboxClient({
+  baseUrl: "http://localhost:8888",
+  auth: "Basic <base64-credentials>",
+});
+
+const mdmbox = makeMdmboxClient({
+  baseUrl: "http://localhost:3003",
+  auth: { username: "my-client", password: "my-secret" },
+});
 
 // 1. Load source and target patients
 const source = await aidbox.read("Patient", "123");
@@ -356,4 +343,4 @@ src/
 
 ## License
 
-[MIT](LICENSE) — Health Samurai
+[MIT](LICENSE)

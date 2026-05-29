@@ -1,1 +1,0 @@
-["^ ","~$routes",["^ ","~:row",8,"~:col",1,"~:fixed-arities",["~#set",[1]],"~:name","^0","~:ns","~$mdmbox.features.models.routes","~:top-ns","^7","~:arities",["^ ","~i1",["^ ","~:ret","~:vector","~:arglist-str","[deps]"]],"~:type","~:fn"],"~:filename","/Users/alexandrkuznetsov/Documents/work/HealthSamurai/mdmbox/src/mdmbox/features/models/routes.clj"]

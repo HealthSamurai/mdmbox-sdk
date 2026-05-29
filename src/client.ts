@@ -211,12 +211,10 @@ function parseReference(reference: string): {
 // ==================== Config & types ====================
 
 /**
- * Authentication for the MDMbox client. MDMbox validates the inbound
- * `Authorization` header in-process via libox, so any credential libox
- * accepts works here.
+ * Authentication for the MDMbox client.
  *
  * - `{ username, password }` — HTTP Basic auth (base64-encoded into
- *   `Authorization: Basic ...`). This is the supported scheme today.
+ *   `Authorization: Basic ...`).
  * - `{ token }` — sent as `Authorization: Bearer <token>`.
  * - a raw string — used verbatim as the `Authorization` header value
  *   (e.g. `"Basic dXNlcjpwYXNz"`).
