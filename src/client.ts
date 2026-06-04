@@ -36,14 +36,16 @@ const MATCH_GRADE_URL =
  *       { url: "fn", valueDecimal: 13.33 }, { url: "dob", valueDecimal: 10.59 }, ...
  *   ] }
  *
- * Unknown keys are ignored; the four known fields default to 0.
+ * Feature keys are model-defined and vary by model (e.g. `fn`/`dob`/`ext`/`sex`
+ * for one model, `given`/`family`/`birth_date`/... for another), so every
+ * `valueDecimal` entry is collected as-is rather than against a fixed allowlist.
  */
 function parseMatchDetails(ext: any[]): MatchResult["matchDetails"] {
-  const out: MatchResult["matchDetails"] = { fn: 0, dob: 0, ext: 0, sex: 0 };
+  const out: MatchResult["matchDetails"] = {};
   const detailsExt = ext?.find((e: any) => e.url === MATCH_DETAILS_URL);
   for (const inner of detailsExt?.extension || []) {
-    if (inner?.url && typeof inner.valueDecimal === "number" && inner.url in out) {
-      out[inner.url as keyof MatchResult["matchDetails"]] = inner.valueDecimal;
+    if (inner?.url && typeof inner.valueDecimal === "number") {
+      out[inner.url] = inner.valueDecimal;
     }
   }
   return out;

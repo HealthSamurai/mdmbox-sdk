@@ -16,12 +16,12 @@ export interface MatchResult {
   normalizedScore?: number;
   /** Match grade from the `match-grade` extension `valueCode` (e.g. "certain"). */
   matchGrade?: string;
-  matchDetails: {
-    fn: number;
-    dob: number;
-    ext: number;
-    sex: number;
-  };
+  /**
+   * Per-feature log-odds contributions. Keys are model-defined and therefore
+   * vary by matching model (e.g. `fn`/`dob`/`ext`/`sex`, or
+   * `given`/`family`/`birth_date`/`email`/...), so this is an open map.
+   */
+  matchDetails: Record<string, number>;
   projection: Record<string, unknown>;
 }
 

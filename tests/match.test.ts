@@ -100,8 +100,8 @@ describe("parseMatchDetails", () => {
     });
   });
 
-  test("returns zeros when extension missing", () => {
-    expect(parseMatchDetails([])).toEqual({ fn: 0, dob: 0, ext: 0, sex: 0 });
+  test("returns an empty object when extension missing", () => {
+    expect(parseMatchDetails([])).toEqual({});
   });
 
   test("handles negative values", () => {
@@ -124,7 +124,7 @@ describe("parseMatchDetails", () => {
     });
   });
 
-  test("ignores unknown inner keys and non-numeric values", () => {
+  test("collects all numeric keys; skips non-numeric values", () => {
     const ext = [
       {
         url: MATCH_DETAILS_URL,
@@ -135,7 +135,8 @@ describe("parseMatchDetails", () => {
         ],
       },
     ];
-    expect(parseMatchDetails(ext)).toEqual({ fn: 5, dob: 0, ext: 0, sex: 0 });
+    // Model-defined keys (incl. "unknown") are kept; the non-numeric "dob" is skipped.
+    expect(parseMatchDetails(ext)).toEqual({ fn: 5, unknown: 99 });
   });
 });
 
@@ -251,7 +252,53 @@ describe("parseMatchBundle (via match)", () => {
     const r = result.value.resource.results[0]!;
     expect(r.normalizedScore).toBeUndefined();
     expect(r.matchGrade).toBeUndefined();
-    expect(r.matchDetails).toEqual({ fn: 0, dob: 0, ext: 0, sex: 0 });
+    expect(r.matchDetails).toEqual({});
+  });
+
+  test("collects model-defined match-details keys as-is", async () => {
+    stubFetch({
+      resourceType: "Bundle",
+      type: "searchset",
+      total: 1,
+      entry: [
+        {
+          fullUrl: "http://localhost:3003/fhir/Patient/105",
+          resource: { resourceType: "Patient", id: "105" },
+          search: {
+            mode: "match",
+            score: 27.0,
+            extension: [
+              {
+                url: MATCH_DETAILS_URL,
+                extension: [
+                  { url: "given", valueDecimal: 8.0 },
+                  { url: "family", valueDecimal: 10.0 },
+                  { url: "birth_date", valueDecimal: 12.0 },
+                  { url: "postal_code", valueDecimal: -2.0 },
+                  { url: "gender", valueDecimal: -1.0 },
+                  { url: "email", valueDecimal: 0.0 },
+                  { url: "phone", valueDecimal: 0.0 },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    const result = await callMatch();
+    expect(result.isOk()).toBe(true);
+    if (!result.isOk()) return;
+    const r = result.value.resource.results[0]!;
+    expect(r.matchDetails).toEqual({
+      given: 8.0,
+      family: 10.0,
+      birth_date: 12.0,
+      postal_code: -2.0,
+      gender: -1.0,
+      email: 0.0,
+      phone: 0.0,
+    });
   });
 });
 
