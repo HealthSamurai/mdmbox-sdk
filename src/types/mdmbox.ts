@@ -10,7 +10,12 @@ import type { OperationOutcome } from "./fhir";
 export interface MatchResult {
   id: string;
   resource: Record<string, unknown>;
+  /** Raw log-odds weight (`search.score`). */
   score: number;
+  /** Normalized match probability 0..1 (`search.normalizedScore`). */
+  normalizedScore?: number;
+  /** Match grade from the `match-grade` extension `valueCode` (e.g. "certain"). */
+  matchGrade?: string;
   matchDetails: {
     fn: number;
     dob: number;

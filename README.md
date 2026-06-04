@@ -45,7 +45,8 @@ const result = await mdmbox.matchById({
 
 if (result.isOk()) {
   result.value.resource.results.forEach((r) => {
-    console.log(r.id, r.score, r.matchDetails);
+    // score: raw log-odds weight, normalizedScore: probability 0..1
+    console.log(r.id, r.score, r.normalizedScore, r.matchGrade, r.matchDetails);
   });
 }
 ```

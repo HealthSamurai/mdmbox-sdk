@@ -25,16 +25,34 @@ const MATCH_DETAILS_URL =
   "http://mdmbox.dev/fhir/StructureDefinition/match-details";
 const PROJECTION_URL =
   "http://mdmbox.dev/fhir/StructureDefinition/projection";
+const MATCH_GRADE_URL =
+  "http://hl7.org/fhir/StructureDefinition/match-grade";
 
+/**
+ * Read per-field contributions from the `match-details` extension. The server
+ * nests each field as an inner extension with a `valueDecimal`:
+ *
+ *   { url: ".../match-details", extension: [
+ *       { url: "fn", valueDecimal: 13.33 }, { url: "dob", valueDecimal: 10.59 }, ...
+ *   ] }
+ *
+ * Unknown keys are ignored; the four known fields default to 0.
+ */
 function parseMatchDetails(ext: any[]): MatchResult["matchDetails"] {
+  const out: MatchResult["matchDetails"] = { fn: 0, dob: 0, ext: 0, sex: 0 };
   const detailsExt = ext?.find((e: any) => e.url === MATCH_DETAILS_URL);
-  if (!detailsExt?.valueString) return { fn: 0, dob: 0, ext: 0, sex: 0 };
-  const s: string = detailsExt.valueString;
-  const get = (key: string): number => {
-    const m = s.match(new RegExp(`:${key}\\s+(-?[\\d.]+)`));
-    return m ? parseFloat(m[1]) : 0;
-  };
-  return { fn: get("fn"), dob: get("dob"), ext: get("ext"), sex: get("sex") };
+  for (const inner of detailsExt?.extension || []) {
+    if (inner?.url && typeof inner.valueDecimal === "number" && inner.url in out) {
+      out[inner.url as keyof MatchResult["matchDetails"]] = inner.valueDecimal;
+    }
+  }
+  return out;
+}
+
+/** Read the `match-grade` `valueCode` from a search extension list, if present. */
+function parseMatchGrade(ext: any[]): string | undefined {
+  const gradeExt = ext?.find((e: any) => e.url === MATCH_GRADE_URL);
+  return typeof gradeExt?.valueCode === "string" ? gradeExt.valueCode : undefined;
 }
 
 function parseProjection(ext: any[]): Record<string, unknown> {
@@ -421,6 +439,11 @@ export function makeClient(config: MdmboxClientConfig): MdmboxClient {
           id: extractIdFromFullUrl(e.fullUrl || ""),
           resource: e.resource,
           score: e.search?.score ?? 0,
+          normalizedScore:
+            typeof e.search?.normalizedScore === "number"
+              ? e.search.normalizedScore
+              : undefined,
+          matchGrade: parseMatchGrade(e.search?.extension),
           matchDetails: parseMatchDetails(e.search?.extension),
           projection: parseProjection(e.search?.extension),
         })),
@@ -666,6 +689,7 @@ export function makeClient(config: MdmboxClientConfig): MdmboxClient {
 export const __internal = {
   buildMatchParameters,
   parseMatchDetails,
+  parseMatchGrade,
   parseProjection,
   extractIdFromFullUrl,
   applyIfMatch,
