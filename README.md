@@ -130,6 +130,45 @@ const result = await mdmbox.merge({
 });
 ```
 
+#### `link(params)` / `linkPreview(params)`
+
+Execute or preview a non-destructive link. The client owns the plan — there is no source/target. The plan MUST create (`POST`) or patch (`PATCH`) at least one profiled `Linkage`; a `POST` entry should carry a `urn:uuid:` `fullUrl` so the audit Provenance can reference the created Linkage.
+
+```ts
+const result = await mdmbox.link({
+  entries: [
+    {
+      fullUrl: "urn:uuid:11111111-1111-4111-8111-111111111111",
+      request: { method: "POST", url: "Linkage" },
+      resource: {
+        resourceType: "Linkage",
+        meta: {
+          profile: [
+            "https://mdm.health-samurai.io/fhir/StructureDefinition/mdm-linkage",
+          ],
+        },
+        active: true,
+        item: [
+          { type: "source", resource: { reference: "Patient/a" } },
+          { type: "alternate", resource: { reference: "Patient/b" } },
+        ],
+      },
+    },
+  ],
+});
+```
+
+#### `unlink(params)` / `unlinkPreview(params)`
+
+Execute or preview the reversal of a link. Pass the link audit `Task` reference plus a reverse plan — typically a single `DELETE` of the `Linkage` (a profiled Linkage is fixed `active=true`, so it cannot be deactivated in place; its history is preserved via `/_history`).
+
+```ts
+const result = await mdmbox.unlink({
+  task: "Task/link-task-id",
+  entries: [{ request: { method: "DELETE", url: "Linkage/l1" } }],
+});
+```
+
 #### `findRelated(params)`
 
 Find resources referencing a given resource.

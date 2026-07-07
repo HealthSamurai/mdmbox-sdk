@@ -17,6 +17,12 @@ import type {
   UnmergeParams,
   UnmergePreviewResponse,
   UnmergeResponse,
+  LinkParams,
+  LinkPreviewResponse,
+  LinkResponse,
+  UnlinkParams,
+  UnlinkPreviewResponse,
+  UnlinkResponse,
 } from "./types/mdmbox";
 
 // ==================== Private helpers ====================
@@ -105,10 +111,9 @@ function buildMatchParameters(
   return { resourceType: "Parameters", parameter };
 }
 
-function applyIfMatch(
-  entries: MergePlanEntry[],
-  withIfMatch: boolean
-): MergePlanEntry[] {
+function applyIfMatch<
+  E extends { resource?: Record<string, unknown>; request: { ifMatch?: string } }
+>(entries: E[], withIfMatch: boolean): E[] {
   if (!withIfMatch) return entries;
   return entries.map((e) => {
     if (e.request.ifMatch) return e;
@@ -169,6 +174,57 @@ export function buildUnmergeBody(
     parameter: [
       { name: "source", valueReference: { reference: params.source } },
       { name: "target", valueReference: { reference: params.target } },
+      { name: "preview", valueBoolean: params.preview },
+      { name: "plan", resource: bundle },
+    ],
+  };
+}
+
+/** Build the FHIR `Parameters` body for a link request. */
+export function buildLinkBody(
+  params: LinkParams & { preview: boolean }
+): {
+  resourceType: "Parameters";
+  parameter: Array<Record<string, unknown>>;
+} {
+  const withIfMatch = params.withIfMatch !== false;
+  const entries = applyIfMatch(params.entries, withIfMatch);
+
+  const bundle = {
+    resourceType: "Bundle" as const,
+    type: "transaction" as const,
+    entry: entries,
+  };
+
+  return {
+    resourceType: "Parameters",
+    parameter: [
+      { name: "plan", resource: bundle },
+      { name: "preview", valueBoolean: params.preview },
+    ],
+  };
+}
+
+/** Build the FHIR `Parameters` body for an unlink request. */
+export function buildUnlinkBody(
+  params: UnlinkParams & { preview: boolean }
+): {
+  resourceType: "Parameters";
+  parameter: Array<Record<string, unknown>>;
+} {
+  const withIfMatch = params.withIfMatch !== false;
+  const entries = applyIfMatch(params.entries, withIfMatch);
+
+  const bundle = {
+    resourceType: "Bundle" as const,
+    type: "transaction" as const,
+    entry: entries,
+  };
+
+  return {
+    resourceType: "Parameters",
+    parameter: [
+      { name: "task", valueReference: { reference: params.task } },
       { name: "preview", valueBoolean: params.preview },
       { name: "plan", resource: bundle },
     ],
@@ -299,6 +355,18 @@ export interface MdmboxClient {
 
   /** `POST /api/$unmerge` with `preview: true` */
   unmergePreview: (params: UnmergeParams) => Promise<Result<UnmergePreviewResponse, MdmboxError>>;
+
+  /** `POST /api/fhir/$link` — execute a client-owned link plan. */
+  link: (params: LinkParams) => Promise<Result<LinkResponse, MdmboxError>>;
+
+  /** `POST /api/fhir/$link` with `preview: true` */
+  linkPreview: (params: LinkParams) => Promise<Result<LinkPreviewResponse, MdmboxError>>;
+
+  /** `POST /api/fhir/$unlink` — reverse a previous link. */
+  unlink: (params: UnlinkParams) => Promise<Result<UnlinkResponse, MdmboxError>>;
+
+  /** `POST /api/fhir/$unlink` with `preview: true` */
+  unlinkPreview: (params: UnlinkParams) => Promise<Result<UnlinkPreviewResponse, MdmboxError>>;
 
   /** `POST /api/fhir/{resource}/{id}/$referencing` */
   findRelated: (params: FindRelatedParams) => Promise<Result<{ resource: any }, MdmboxError>>;
@@ -600,6 +668,106 @@ export function makeClient(config: MdmboxClientConfig): MdmboxClient {
     });
   }
 
+  async function link(
+    params: LinkParams
+  ): Promise<Result<LinkResponse, MdmboxError>> {
+    const body = buildLinkBody({ ...params, preview: false });
+    const result = await request<any>("/api/fhir/$link", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+
+    return result.map(({ resource: payload }) => {
+      const outcomeParam = getParameter(payload, "outcome");
+      const outcome: OperationOutcome = outcomeParam?.resource ?? {
+        resourceType: "OperationOutcome",
+        issue: [],
+      };
+      return {
+        resource: {
+          outcome,
+          task: getParameter(payload, "task")?.resource,
+          inputParameters: getParameter(payload, "input-parameters")?.resource,
+        },
+      };
+    });
+  }
+
+  async function linkPreview(
+    params: LinkParams
+  ): Promise<Result<LinkPreviewResponse, MdmboxError>> {
+    const body = buildLinkBody({ ...params, preview: true });
+    const result = await request<any>("/api/fhir/$link", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+
+    return result.map(({ resource: payload }) => {
+      const outcomeParam = getParameter(payload, "outcome");
+      const outcome: OperationOutcome = outcomeParam?.resource ?? {
+        resourceType: "OperationOutcome",
+        issue: [],
+      };
+      const bundleParam = getParameter(payload, "bundle");
+      return {
+        resource: {
+          outcome,
+          bundle: bundleParam?.resource as TransactionBundle,
+        },
+      };
+    });
+  }
+
+  async function unlink(
+    params: UnlinkParams
+  ): Promise<Result<UnlinkResponse, MdmboxError>> {
+    const body = buildUnlinkBody({ ...params, preview: false });
+    const result = await request<any>("/api/fhir/$unlink", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+
+    return result.map(({ resource: payload }) => {
+      const outcomeParam = getParameter(payload, "outcome");
+      const outcome: OperationOutcome = outcomeParam?.resource ?? {
+        resourceType: "OperationOutcome",
+        issue: [],
+      };
+      return {
+        resource: {
+          outcome,
+          task: getParameter(payload, "task")?.resource,
+          inputParameters: getParameter(payload, "input-parameters")?.resource,
+        },
+      };
+    });
+  }
+
+  async function unlinkPreview(
+    params: UnlinkParams
+  ): Promise<Result<UnlinkPreviewResponse, MdmboxError>> {
+    const body = buildUnlinkBody({ ...params, preview: true });
+    const result = await request<any>("/api/fhir/$unlink", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+
+    return result.map(({ resource: payload }) => {
+      const outcomeParam = getParameter(payload, "outcome");
+      const outcome: OperationOutcome = outcomeParam?.resource ?? {
+        resourceType: "OperationOutcome",
+        issue: [],
+      };
+      const bundleParam = getParameter(payload, "bundle");
+      return {
+        resource: {
+          outcome,
+          bundle: bundleParam?.resource as TransactionBundle,
+        },
+      };
+    });
+  }
+
   async function getModel(params: {
     id: string;
   }): Promise<Result<{ resource: MatchingModel }, MdmboxError>> {
@@ -677,6 +845,10 @@ export function makeClient(config: MdmboxClientConfig): MdmboxClient {
     mergePreview,
     unmerge,
     unmergePreview,
+    link,
+    linkPreview,
+    unlink,
+    unlinkPreview,
     findRelated,
     getModel,
     read,
