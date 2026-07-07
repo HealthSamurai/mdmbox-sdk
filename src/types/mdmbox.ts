@@ -153,15 +153,14 @@ export interface MergePreviewResponse {
 /**
  * Parameters accepted by `MdmboxClient.unmerge`.
  *
- * @property source Reference to the resource that was merged away (e.g. `"Patient/123"`).
- * @property target Reference to the resource that was merged into (the "winner").
+ * @property task Reference to the merge audit `Task` being reversed (e.g.
+ *   `"Task/123"`). This is what the server keys the reversal on.
  * @property withIfMatch When true (default), the SDK populates `ifMatch` on every PUT entry
  *   from `entry.resource.meta.versionId`. Set to `false` to manage `ifMatch` manually.
  * @property entries List of unmerge plan entries (PUT/POST/DELETE).
  */
 export interface UnmergeParams {
-  source: string;
-  target: string;
+  task: string;
   withIfMatch?: boolean;
   entries: MergePlanEntry[];
 }

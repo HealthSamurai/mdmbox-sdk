@@ -172,8 +172,7 @@ export function buildUnmergeBody(
   return {
     resourceType: "Parameters",
     parameter: [
-      { name: "source", valueReference: { reference: params.source } },
-      { name: "target", valueReference: { reference: params.target } },
+      { name: "task", valueReference: { reference: params.task } },
       { name: "preview", valueBoolean: params.preview },
       { name: "plan", resource: bundle },
     ],
