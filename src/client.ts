@@ -344,16 +344,16 @@ export interface MdmboxClient {
   /** `POST /api/fhir/{resource}/$match` — match a resource passed in the request body. */
   match: (params: MatchParams) => Promise<Result<{ resource: MatchResponse }, MdmboxError>>;
 
-  /** `POST /api/$merge` */
+  /** `POST /api/fhir/$merge` */
   merge: (params: MergeParams) => Promise<Result<MergeResponse, MdmboxError>>;
 
-  /** `POST /api/$merge` with `preview: true` */
+  /** `POST /api/fhir/$merge` with `preview: true` */
   mergePreview: (params: MergeParams) => Promise<Result<MergePreviewResponse, MdmboxError>>;
 
-  /** `POST /api/$unmerge` */
+  /** `POST /api/fhir/$unmerge` */
   unmerge: (params: UnmergeParams) => Promise<Result<UnmergeResponse, MdmboxError>>;
 
-  /** `POST /api/$unmerge` with `preview: true` */
+  /** `POST /api/fhir/$unmerge` with `preview: true` */
   unmergePreview: (params: UnmergeParams) => Promise<Result<UnmergePreviewResponse, MdmboxError>>;
 
   /** `POST /api/fhir/$link` — execute a client-owned link plan. */
@@ -551,7 +551,7 @@ export function makeClient(config: MdmboxClientConfig): MdmboxClient {
     params: MergeParams
   ): Promise<Result<MergeResponse, MdmboxError>> {
     const body = buildMergeBody({ ...params, preview: false });
-    const result = await request<any>("/api/$merge", {
+    const result = await request<any>("/api/fhir/$merge", {
       method: "POST",
       body: JSON.stringify(body),
     });
@@ -577,7 +577,7 @@ export function makeClient(config: MdmboxClientConfig): MdmboxClient {
     params: MergeParams
   ): Promise<Result<MergePreviewResponse, MdmboxError>> {
     const body = buildMergeBody({ ...params, preview: true });
-    const result = await request<any>("/api/$merge", {
+    const result = await request<any>("/api/fhir/$merge", {
       method: "POST",
       body: JSON.stringify(body),
     });
@@ -621,7 +621,7 @@ export function makeClient(config: MdmboxClientConfig): MdmboxClient {
     params: UnmergeParams
   ): Promise<Result<UnmergeResponse, MdmboxError>> {
     const body = buildUnmergeBody({ ...params, preview: false });
-    const result = await request<any>("/api/$unmerge", {
+    const result = await request<any>("/api/fhir/$unmerge", {
       method: "POST",
       body: JSON.stringify(body),
     });
@@ -647,7 +647,7 @@ export function makeClient(config: MdmboxClientConfig): MdmboxClient {
     params: UnmergeParams
   ): Promise<Result<UnmergePreviewResponse, MdmboxError>> {
     const body = buildUnmergeBody({ ...params, preview: true });
-    const result = await request<any>("/api/$unmerge", {
+    const result = await request<any>("/api/fhir/$unmerge", {
       method: "POST",
       body: JSON.stringify(body),
     });
